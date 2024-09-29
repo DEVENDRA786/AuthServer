@@ -85,3 +85,11 @@ CREATE TABLE client
 //                registeredClientRepository.save(oidcClient);
 //
 //    }  create a test case also
+
+
+
+git init
+git add .
+git commit -m "Initial commit"
+git remote add origin https://github.com/your-username/your-repository-name.git
+git push -u origin main
