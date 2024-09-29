@@ -3,6 +3,7 @@ package com.authserver.AuthServer.security.models;
 import com.authserver.AuthServer.models.Role;
 import com.authserver.AuthServer.models.User;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import lombok.*;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
