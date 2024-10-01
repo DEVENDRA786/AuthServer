@@ -7,10 +7,21 @@ import com.authserver.AuthServer.dtos.SignUpRequestDto;
 import com.authserver.AuthServer.dtos.UserDto;
 import com.authserver.AuthServer.models.Token;
 import com.authserver.AuthServer.services.UserService;
+import okhttp3.FormBody;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+
+import okhttp3.Response;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.lang.NonNull;
 import org.springframework.web.bind.annotation.*;
+
+import java.io.IOException;
+import java.net.URI;
+import java.net.URLEncoder;
+import java.util.Base64;
 
 @RestController
 @RequestMapping("/users")
@@ -55,4 +66,55 @@ public class UserController {
     public UserDto validateToken(@PathVariable("token") @NonNull String token) {
         return UserDto.from(userService.validateToken(token));
     }
+
+    @GetMapping("/getAccessToken")
+    public ResponseEntity<Object> handleOAuth2Response(@RequestParam("code") String code) {
+        // Now you have the authorization code and can exchange it for an access token
+        return exchangeAuthorizationCodeForAccessToken(code);
+       // return ResponseEntity.ok("Authorization code received: " + code);
+    }
+
+    private ResponseEntity<Object> exchangeAuthorizationCodeForAccessToken(String authorizationCode) {
+        OkHttpClient client = new OkHttpClient();
+        URI app = null;
+        HttpHeaders httpHeaders = new HttpHeaders();
+        okhttp3.RequestBody formBody = new FormBody.Builder()
+                .add("grant_type", "authorization_code")
+                .add("code", authorizationCode)
+                .add("redirect_uri", "http://localhost:8181/auth/users/getAccessToken")
+                .add("client_id", "oidc-client")
+                .add("client_secret", "secret")  // Replace with your actual client secret
+                .build();
+
+        String credentials = "oidc-client:secret"; // Use your client_id and client_secret
+        String basicAuth = "Basic " + Base64.getEncoder().encodeToString(credentials.getBytes());
+
+        Request request = new Request.Builder()
+                .url("http://localhost:8181/auth/oauth2/token") // Token endpoint
+                .header("Authorization", basicAuth) // Add the Basic Auth header if required
+                .post(formBody)
+                .build();
+
+        try (Response response = client.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                throw new IOException("Unexpected code " + response);
+            }
+            String responseBody = response.body().string();
+            System.out.println("Response bodyuiuiuuuuouououou: " + responseBody);
+            // return response.body().string();  // Return the response as a string
+            try {
+                String encodedCode = URLEncoder.encode(responseBody, "UTF-8");
+                app = new URI("http://localhost:5173/callback?code="+ encodedCode);
+            }
+            catch (Exception e){
+                e.printStackTrace();
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+
+        }
+        httpHeaders.setLocation(app);
+        return new ResponseEntity<>(httpHeaders, HttpStatus.MOVED_PERMANENTLY);
+    }
+
 }
