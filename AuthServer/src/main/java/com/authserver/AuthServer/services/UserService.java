@@ -5,7 +5,9 @@ import com.authserver.AuthServer.models.Token;
 import com.authserver.AuthServer.models.User;
 import com.authserver.AuthServer.repositories.TokenRepository;
 import com.authserver.AuthServer.repositories.UserRepository;
+import com.authserver.AuthServer.security.services.CustomUserDetailsService;
 import org.apache.commons.lang3.RandomStringUtils;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -20,14 +22,18 @@ import java.util.Optional;
 public class UserService {
     private UserRepository userRepository;
     private BCryptPasswordEncoder bCryptPasswordEncoder;
+    private CustomUserDetailsService customUserDetailsService;
+
     private TokenRepository tokenRepository;
 
     public UserService(UserRepository userRepository,
                        BCryptPasswordEncoder bCryptPasswordEncoder,
-                       TokenRepository tokenRepository) {
+                       TokenRepository tokenRepository,
+                       CustomUserDetailsService customUserDetailsService) {
         this.userRepository = userRepository;
         this.bCryptPasswordEncoder = bCryptPasswordEncoder;
         this.tokenRepository = tokenRepository;
+        this.customUserDetailsService =customUserDetailsService;
     }
 
     public User signUp(String fullName,
@@ -43,28 +49,30 @@ public class UserService {
         return user;
     }
 
-    public Token login(String email, String password) {
-        Optional<User> userOptional = userRepository.findByEmail(email);
+    public Object login(String email, String password) {
+//        Optional<User> userOptional = userRepository.findByEmail(email);
+//
+//        if (userOptional.isEmpty()) {
+//            // throw user not exists exception
+//            return null;
+//        }
+//
+//        User user = userOptional.get();
 
-        if (userOptional.isEmpty()) {
-            // throw user not exists exception
-            return null;
+       UserDetails user = customUserDetailsService.loadUserByUsername(email);
+
+
+        if (!bCryptPasswordEncoder.matches(password, user.getPassword())) {
+            throw new RuntimeException("No User Password Match");
         }
+//
+//        Token token = getToken(user);
+//
+//        // TODO 1: Change the above token to a JWT Token
+//
+//        Token savedToken = tokenRepository.save(token);
 
-        User user = userOptional.get();
-
-        if (!bCryptPasswordEncoder.matches(password, user.getHashedPassword())) {
-            // throw password not matching exception
-            return null;
-        }
-
-        Token token = getToken(user);
-
-        // TODO 1: Change the above token to a JWT Token
-
-        Token savedToken = tokenRepository.save(token);
-
-        return savedToken;
+        return user;
     }
 
     private static Token getToken(User user) {

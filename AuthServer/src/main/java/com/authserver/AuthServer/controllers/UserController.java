@@ -5,18 +5,26 @@ import com.authserver.AuthServer.dtos.LoginRequestDto;
 import com.authserver.AuthServer.dtos.LogoutRequestDto;
 import com.authserver.AuthServer.dtos.SignUpRequestDto;
 import com.authserver.AuthServer.dtos.UserDto;
-import com.authserver.AuthServer.models.Token;
+
+import com.authserver.AuthServer.security.services.CustomUserDetailsService;
 import com.authserver.AuthServer.services.UserService;
+
+import jakarta.servlet.http.HttpSession;
 import okhttp3.FormBody;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
-
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.*;
+import org.springframework.web.client.RestTemplate;
 import okhttp3.Response;
+import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.lang.NonNull;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.RestTemplate;
 
 import java.io.IOException;
 import java.net.URI;
@@ -28,15 +36,32 @@ import java.util.Base64;
 public class UserController {
     private UserService userService;
 
-    public UserController(UserService userService) {
+    private CustomUserDetailsService customUserDetailsService;
+
+    private  RestTemplate restTemplate;
+
+
+    private  HttpSession httpSession;
+
+
+    @Value("${auth.server.revoke.token.url}") // URL of your auth server's revoke endpoint
+    private String revokeTokenUrl;
+
+
+    public UserController(UserService userService,CustomUserDetailsService customUserDetailsService,RestTemplate restTemplate,
+                          HttpSession httpSession) {
         this.userService = userService;
+        this.customUserDetailsService=customUserDetailsService;
+        this.restTemplate = restTemplate;
+        this.httpSession = httpSession;
     }
 
     @PostMapping("/login")
-    public Token login(@RequestBody LoginRequestDto request) {
+    public Object login(@RequestBody LoginRequestDto request) {
         // check if email and password in db
         // if yes return user
         // else throw some error
+
         return userService.login(request.getEmail(), request.getPassword());
     }
 
@@ -53,14 +78,43 @@ public class UserController {
         return UserDto.from(userService.signUp(name, email, password));
     }
 
-    @PostMapping("/logout")
-    public ResponseEntity<Void> logout(@RequestBody LogoutRequestDto request) {
-        // delete token if exists -> 200
-        // if doesn't exist give a 404
+//    @PostMapping("/logout")
+//    public ResponseEntity<Void> logout(@RequestBody LogoutRequestDto request) {
+//        // delete token if exists -> 200
+//        // if doesn't exist give a 404
+//
+//        userService.logout(request.getToken());
+//        return new ResponseEntity<>(HttpStatus.OK);
+//    }
 
-        userService.logout(request.getToken());
-        return new ResponseEntity<>(HttpStatus.OK);
+
+    @PostMapping("/logout")
+    public ResponseEntity<String> logout(HttpSession httpSession) {
+        // Assuming the token is stored in a secure way (like session, etc.)
+        String token = (String) httpSession.getAttribute("access_token");
+
+         HttpHeaders headers = new HttpHeaders();
+         headers.set("Authorization", "Bearer " + token);
+
+        // Prepare the request for revocation
+        HttpEntity<String> requestEntity = new HttpEntity<>(headers);
+
+        // Send the request to revoke the token
+        ResponseEntity<String> response = restTemplate.exchange(
+                revokeTokenUrl,
+                HttpMethod.POST,
+                requestEntity,
+                String.class
+        );
+
+        if (response.getStatusCode().is2xxSuccessful()) {
+            // Clear the session or perform any other necessary actions
+            return ResponseEntity.ok("Logout successful");
+        } else {
+            return ResponseEntity.status(response.getStatusCode()).body("Logout failed");
+        }
     }
+
 
     @PostMapping("/validate/{token}")
     public UserDto validateToken(@PathVariable("token") @NonNull String token) {
@@ -94,6 +148,7 @@ public class UserController {
                 .header("Authorization", basicAuth) // Add the Basic Auth header if required
                 .post(formBody)
                 .build();
+
 
         try (Response response = client.newCall(request).execute()) {
             if (!response.isSuccessful()) {

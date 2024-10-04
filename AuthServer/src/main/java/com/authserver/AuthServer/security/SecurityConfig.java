@@ -75,6 +75,7 @@ public class SecurityConfig {
                         .jwt(Customizer.withDefaults()));
 
         return http.build();
+
     }
 
     @Bean
@@ -88,9 +89,11 @@ public class SecurityConfig {
                 )
                 .cors(Customizer.withDefaults())
                 .csrf(csrf->csrf.disable())
-                .formLogin(Customizer.withDefaults());
-
+                .formLogin(Customizer.withDefaults())
+                .httpBasic(Customizer.withDefaults());
         return http.build();
+
+
     }
 
     @Bean
